@@ -8,40 +8,31 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class ParallelFutureYobaSort {
 
     /**
      * It is no joke... well... it works... sometimes lul
      *
-     * @param input
+     * @param input real world application data
+     * @return sorted collection
      *
-     * @return
-     *
-     * @throws InterruptedException
+     * @throws InterruptedException in your face! if you dare to interrupt yoba sort
      */
     private static Collection<Integer> sort(List<Integer> input) throws InterruptedException, ExecutionException {
         ExecutorService pool = Executors.newFixedThreadPool(input.size());
 
         Queue<Integer> res = new ConcurrentLinkedQueue<>();
 
-        List<CompletableFuture<Void>> tasks = input.stream()
-            .map(integer ->
-                     CompletableFuture.supplyAsync(() -> integer, pool)
-                         .thenApply(i -> {
-                             try {
-                                 Thread.sleep(i);
-                             } catch (InterruptedException e) {
-                                 throw new IllegalStateException("Dare to interrupt yoba sort?");
-                             }
-                             return i;
-                         })
-                         .thenAccept(res::add)
-            ).collect(Collectors.toList());
+        CompletableFuture.allOf(
+            input.stream()
+                .map(integer ->
+                         CompletableFuture.supplyAsync(() -> integer, pool)
+                             .thenApply(ParallelFutureYobaSort::peekAndWait)
+                             .thenAccept(res::add)
+                ).toArray(CompletableFuture[]::new)
+        ).get();
 
-        CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0])).get();
         pool.shutdown();
         return res;
     }
@@ -50,6 +41,15 @@ public class ParallelFutureYobaSort {
         Collection<Integer> sort = sort(Help.throwTheDices(10));
         System.out.println(sort);
         Help.checkSorted(sort);
+    }
+
+    private static int peekAndWait(int i) {
+        try {
+            Thread.sleep(i);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Dare to interrupt yoba sort?");
+        }
+        return i;
     }
 
 }
